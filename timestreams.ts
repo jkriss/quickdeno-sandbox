@@ -1,4 +1,9 @@
-import { getPost, TimestreamFileHelper, pad } from "./timestreams-core.ts";
+import {
+  getPost,
+  TimestreamFileHelper,
+  pad,
+  getBefore,
+} from "./timestreams-core.ts";
 
 const writeLine = (str?: string) => console.log(`${str || ""}\r`);
 
@@ -40,6 +45,8 @@ async function run() {
   const query = new URLSearchParams(qs);
   const streamName = query.get("stream");
   const postId = query.get("post");
+  const beforeString = query.get("before");
+  const beforeDate = beforeString ? Date.parse(beforeString) : undefined;
 
   const base = `${streamName}.timestream`;
 
@@ -77,8 +84,11 @@ async function run() {
     },
   };
 
-  if (["GET", "HEAD"].includes(method) && streamName && postId) {
-    const post = await getPost(postId, helper);
+  if (["GET", "HEAD"].includes(method) && streamName) {
+    const post = postId
+      ? await getPost(postId, helper)
+      : await getBefore(beforeDate, helper);
+    // const post = await getPost(postId, helper);
 
     if (post) {
       const fullPath = [base, post.filepath].join(sep);

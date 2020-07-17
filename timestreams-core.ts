@@ -300,6 +300,23 @@ export async function getPreviousId(
   return path ? idForFile(path, helper) : undefined;
 }
 
+export async function getBefore(
+  time: number | undefined,
+  helper: TimestreamFileHelper,
+): Promise<Post | undefined> {
+  if (!time) time = Date.now();
+  const dateParts = timeToDateParts(time);
+  let sameDayFiles = await getFilesOnDateOrBefore(dateParts, helper);
+  sameDayFiles = sameDayFiles.filter((f) => !f.includes("$"));
+  const path = sameDayFiles[0];
+  if (path) {
+    const id = idForFile(path, helper);
+    if (id) {
+      return getPost(id, helper);
+    }
+  }
+}
+
 export async function getPost(
   id: string,
   helper: TimestreamFileHelper,

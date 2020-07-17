@@ -8,6 +8,7 @@ import {
   PostHeaders,
   pad,
   idForFile,
+  getBefore,
 } from "./timestreams-core.ts";
 import * as LinkHeader from "./link.ts";
 
@@ -144,4 +145,15 @@ Deno.test("get a post by id", async () => {
   );
 });
 
-// TODO test before filter
+Deno.test("get first post", async () => {
+  const post = await getBefore(undefined, helper);
+  assert(post, "first post should exist");
+  assertEquals(post.filepath, "2020/07/01/hello.txt");
+});
+
+Deno.test("get first post before a date", async () => {
+  const d = Date.UTC(2020, 6 - 1, 5);
+  const post = await getBefore(d, helper);
+  assert(post, "first post before this date should exist");
+  assertEquals(post.filepath, "2020/06/01/a.txt");
+});
