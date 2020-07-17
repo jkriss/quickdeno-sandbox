@@ -30,12 +30,13 @@ function parseLink(link: string): Link | undefined {
   }
 }
 
-export function parseLinkHeader(header?: string): Link[] {
+export function parseLinkHeader(header?: string | undefined | null): Link[] {
   if (!header) return [];
   // @ts-ignore
-  return header.split(/,\s*</).map(parseLink).filter((p) =>
-    typeof p !== "undefined"
-  );
+  return header
+    .split(/,\s*</)
+    .map(parseLink)
+    .filter((p) => typeof p !== "undefined");
 }
 
 export function stringify(links: Link[]) {

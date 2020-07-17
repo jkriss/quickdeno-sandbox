@@ -4,6 +4,7 @@ import {
   pad,
   getBefore,
 } from "./timestreams-core.ts";
+import { parseLinkHeader, stringify } from "./link.ts";
 
 const writeLine = (str?: string) => console.log(`${str || ""}\r`);
 
@@ -92,6 +93,16 @@ async function run() {
 
     if (post) {
       const fullPath = [base, post.filepath].join(sep);
+      // rewrite link header to have correct paths
+      const links = parseLinkHeader(post.headers.get("link"));
+      for (const link of links) {
+        if (!link.url.match(/^http/)) {
+          link.url = `${Deno.env.get("REQUEST_URI")}?stream=${
+            encodeURIComponent(streamName)
+          }&post=${encodeURIComponent(link.url)}`;
+        }
+      }
+      post.headers.set("link", stringify(links));
       for (const [k, v] of post?.headers.entries()) {
         writeLine(`${k}: ${v}`);
       }
