@@ -1,7 +1,6 @@
 import * as LinkHeader from "./link.ts";
 
 export interface TimeAndName {
-  time: number;
   dateParts: DateParts;
   name: string;
 }
@@ -29,15 +28,17 @@ export enum PostHeaders {
 
 export interface TimestreamFileHelper {
   // dirExists(path: string): boolean;
-  // earliestYear(): number;
+  earliestDay(): DateParts | Promise<DateParts>;
   fileExists(path: string): boolean | Promise<boolean>;
   filesWithPrefix(path: string): string[] | Promise<string[]>;
+  filesForDay(d: DateParts): string[] | Promise<string[]>;
   separator?: string;
   fileText(path: string): string | undefined | Promise<string | undefined>;
   typeForExtension(ext: string): string;
 }
 
 const timePatternStr = `(\\d{2})(\\d{2})(\\d{2})Z`;
+const timePattern = new RegExp(timePatternStr);
 const compactDayPatternStr = `(\\d{4})(\\d{2})(\\d{2})`;
 const idPattern = new RegExp(`${compactDayPatternStr}${timePatternStr}-(.*)`);
 
@@ -85,9 +86,7 @@ export function parseId(id: string): TimeAndName | undefined {
     const name = m.pop();
     if (!name) return undefined;
     const dateParts = toDateParts(m);
-    const time = toUTC(dateParts);
     return {
-      time,
       name,
       dateParts,
     };
@@ -96,19 +95,26 @@ export function parseId(id: string): TimeAndName | undefined {
   }
 }
 
-export function fileForId(id: string): string | undefined {
+export function fileForId(
+  id: string,
+  helper: TimestreamFileHelper,
+): string | undefined {
   const timeAndName = parseId(id);
   if (!timeAndName) return undefined;
-  return fileForMeta(timeAndName);
+  return fileForMeta(timeAndName, helper);
 }
 
-function pad(n: number | undefined) {
+export function pad(n: number | undefined) {
   return n ? n.toString().padStart(2, "0") : "00";
+}
+
+function compactDay({ year, month, day }: DateParts): string {
+  return `${year}${pad(month)}${pad(day)}`;
 }
 
 export function fileForMeta(
   meta: TimeAndName,
-  helper?: TimestreamFileHelper,
+  helper: TimestreamFileHelper,
 ): string | undefined {
   const sep = helper?.separator || "/";
   const { year, month, day, hour, minute, second } = meta.dateParts;
@@ -118,6 +124,47 @@ export function fileForMeta(
   }
   str += meta.name;
   return str;
+}
+
+export function idForMeta(
+  meta: TimeAndName,
+  helper: TimestreamFileHelper,
+): string {
+  const { year, month, day, hour, minute, second } = meta.dateParts;
+  return `${year}${pad(month)}${pad(day)}${pad(hour)}${pad(minute)}${
+    pad(second)
+  }Z-${meta.name}`;
+}
+
+export function idForFile(
+  path: string,
+  helper: TimestreamFileHelper,
+): string | undefined {
+  const sep = helper.separator || "/";
+  const re = new RegExp(`^(\\d{4})${sep}(\\d{2})${sep}(\\d{2})${sep}(.*)`);
+  const m = path.match(re);
+  if (m) {
+    const [_all, year, month, day, rest] = m;
+    let name = rest;
+    const dateParts = {
+      year: parseInt(year),
+      month: parseInt(month),
+      day: parseInt(day),
+      hour: 0,
+      minute: 0,
+      second: 0,
+    };
+    const timeMatch = rest.match(timePattern);
+    if (timeMatch) {
+      const [all, hour, minute, second] = timeMatch;
+      dateParts.hour = parseInt(hour);
+      dateParts.minute = parseInt(minute);
+      dateParts.second = parseInt(second);
+
+      name = rest.slice(all.length + 1); // plus the - delimiter
+    }
+    return idForMeta({ dateParts, name }, helper);
+  }
 }
 
 export async function makeLinks({
@@ -165,11 +212,13 @@ export async function makeLinks({
         // it may also have a .attributes file
         const rel = first;
         const ext = second;
-        links.push({
+        const type = helper.typeForExtension("." + ext);
+        const link: LinkHeader.Link = {
           rel,
-          type: helper.typeForExtension("." + ext),
           url: `${id}$${suffix}`,
-        });
+        };
+        if (type) link.type = type;
+        links.push(link);
       } else if (third === "attributes") {
         // add these attributes to an existing rel
         const ext = second;
@@ -189,6 +238,66 @@ export async function makeLinks({
   }
 
   return links;
+}
+
+// add tests just for this
+export function subtractDay({ year, month, day }: DateParts): DateParts {
+  if (day > 1) {
+    return { year, month, day: day - 1 };
+  } else if (month > 1) {
+    // this might not be a real date, but that's ok
+    return { year, month: month - 1, day: 31 };
+  } else {
+    return { year: year - 1, month: 12, day: 31 };
+  }
+}
+
+export async function getFilesOnDateOrBefore(
+  date: DateParts,
+  helper: TimestreamFileHelper,
+): Promise<string[]> {
+  const minDate = await helper.earliestDay();
+  const minDateStr = compactDay(minDate);
+  let dayFiles: string[] = [];
+  while (dayFiles.length === 0 && compactDay(date) >= minDateStr) {
+    dayFiles = await helper.filesForDay(date);
+    date = subtractDay(date);
+  }
+  return dayFiles.sort(function (a, b) {
+    return a.localeCompare(b);
+  });
+}
+
+export async function getPreviousId(
+  meta: TimeAndName,
+  helper: TimestreamFileHelper,
+): Promise<string | undefined> {
+  // get any with the same date, filter out $ files, filter out this prefix,
+  // see if there are any after it lexigraphically
+  let sameDayFiles = await getFilesOnDateOrBefore(meta.dateParts, helper);
+  sameDayFiles = sameDayFiles.filter((f) => !f.includes("$"));
+  const thisFile = fileForMeta(meta, helper);
+  let foundThisFile = false;
+  let path: string | undefined;
+  for (const f of sameDayFiles) {
+    // if we found a the file on the last iteration,
+    // now we're on the next in the list
+    if (foundThisFile) {
+      path = f;
+      break;
+    }
+    if (f === thisFile) foundThisFile = true;
+  }
+  if (!path) {
+    // if not, get files for the next earliest date, return the first non $
+    let earlierFiles = await getFilesOnDateOrBefore(
+      subtractDay(meta.dateParts),
+      helper,
+    );
+    earlierFiles = earlierFiles.filter((f) => !f.includes("$"));
+    path = earlierFiles[0];
+  }
+  return path ? idForFile(path, helper) : undefined;
 }
 
 export async function getPost(
@@ -212,7 +321,13 @@ export async function getPost(
       "application/octet-stream";
     headers.set(PostHeaders.type, type);
     const links = await makeLinks({ id, type, path: p, helper });
-    // TODO get previous
+    const previousId = await getPreviousId(meta, helper);
+    if (previousId) {
+      links.push({
+        rel: "previous",
+        url: previousId,
+      });
+    }
     headers.set(PostHeaders.link, LinkHeader.stringify(links));
 
     return {

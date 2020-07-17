@@ -1,4 +1,4 @@
-import { getPost, TimestreamFileHelper } from "./timestreams-core.ts";
+import { getPost, TimestreamFileHelper, pad } from "./timestreams-core.ts";
 
 const writeLine = (str?: string) => console.log(`${str || ""}\r`);
 
@@ -9,6 +9,7 @@ const mimes: Record<string, string> = {
   ".png": "image/png",
   ".html": "text/html",
   ".js": "text/javascript",
+  ".json": "application/json",
   ".css": "text/css",
   ".md": "text/markodwn",
 };
@@ -54,6 +55,26 @@ async function run() {
     typeForExtension: (ext: string) => mimes[ext],
     filesWithPrefix: (path: string) => filesWithPrefix(base, path),
     separator: sep,
+    earliestDay: () => {
+      let minYear = 9999;
+      for (const f of Deno.readDirSync(base)) {
+        const num = parseInt(f.name);
+        if (num < minYear) minYear = num;
+      }
+      return { year: minYear, month: 1, day: 1 };
+    },
+    filesForDay: ({ year, month, day }) => {
+      const files: string[] = [];
+      const dayDir = `${year}/${pad(month)}/${pad(day)}`;
+      try {
+        for (const f of Deno.readDirSync(`${base}/${dayDir}`)) {
+          files.push(`${dayDir}/${f.name}`);
+        }
+        return files;
+      } catch (err) {
+        return [];
+      }
+    },
   };
 
   if (["GET", "HEAD"].includes(method) && streamName && postId) {
@@ -64,8 +85,8 @@ async function run() {
       for (const [k, v] of post?.headers.entries()) {
         writeLine(`${k}: ${v}`);
       }
-      // const stat = Deno.statSync(fullPath)
-      // if (stat) writeLine(`content-length: ${stat.size}`)
+      const stat = Deno.statSync(fullPath);
+      if (stat) writeLine(`content-length: ${stat.size}`);
       writeLine();
       if (method === "GET") {
         const buffer = new Uint8Array(4096);

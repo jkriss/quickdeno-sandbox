@@ -6,6 +6,8 @@ import {
   TimestreamFileHelper,
   getPost,
   PostHeaders,
+  pad,
+  idForFile,
 } from "./timestreams-core.ts";
 import * as LinkHeader from "./link.ts";
 
@@ -14,6 +16,8 @@ const fakeFiles: Record<string, string> = {
   "2020/07/01/hello.txt$self.attributes": `title="test post";`,
   "2020/07/01/hello.txt$describedby.txt": "This is a test post",
   "2020/07/01/hello.txt$describedby.txt.attributes": "title=Description",
+  "2020/07/01/z.txt": "last of the day",
+  "2020/06/01/a.txt": "from an earlier month",
 };
 
 const mimes: Record<string, string> = {
@@ -25,6 +29,15 @@ const helper: TimestreamFileHelper = {
   fileExists: (path) => Object.keys(fakeFiles).includes(path),
   fileText: (path) => fakeFiles[path],
   filesWithPrefix,
+  earliestDay: () => ({ year: 2020, month: 6, day: 1 }),
+  filesForDay: ({ year, month, day }) => {
+    const files: string[] = [];
+    const prefix = `${year}/${pad(month)}/${pad(day)}`;
+    for (const k of Object.keys(fakeFiles)) {
+      if (k.startsWith(prefix)) files.push(k);
+    }
+    return files;
+  },
 };
 
 function filesWithPrefix(p: string): string[] {
@@ -46,7 +59,6 @@ Deno.test("parse an id into a time and a name", () => {
   const parsed = parseId("20200716101005Z-hi.txt");
   delete parsed?.dateParts;
   assertEquals(parsed, {
-    time: d.getTime(),
     name: "hi.txt",
   });
   assertEquals(parseId("not-an-id"), undefined);
@@ -54,10 +66,24 @@ Deno.test("parse an id into a time and a name", () => {
 
 Deno.test("get a relative file path for an id", () => {
   assertEquals(
-    fileForId("20200716101005Z-hi.txt"),
+    fileForId("20200716101005Z-hi.txt", helper),
     "2020/07/16/101005Z-hi.txt",
   );
-  assertEquals(fileForId("20200716000000Z-hi.txt"), "2020/07/16/hi.txt");
+  assertEquals(
+    fileForId("20200716000000Z-hi.txt", helper),
+    "2020/07/16/hi.txt",
+  );
+});
+
+Deno.test("get an id from a path", () => {
+  assertEquals(
+    idForFile("2020/07/16/101005Z-hi.txt", helper),
+    "20200716101005Z-hi.txt",
+  );
+  assertEquals(
+    idForFile("2020/07/16/hi.txt", helper),
+    "20200716000000Z-hi.txt",
+  );
 });
 
 Deno.test("parse a time into date parts", () => {
@@ -73,7 +99,7 @@ Deno.test("parse a time into date parts", () => {
 
 Deno.test("get a post by id", async () => {
   const id = "20200701000000Z-hello.txt";
-  const expectedPath = fileForId(id);
+  const expectedPath = fileForId(id, helper);
   assert(expectedPath);
 
   const post = await getPost(id, helper);
@@ -99,10 +125,23 @@ Deno.test("get a post by id", async () => {
   assert(describedByText, "should have describedby test");
   assertEquals(describedByText.title, "Description");
 
-  // TODO check previous
+  const previousLink = links.find((link) => link.rel === "previous");
+  assert(previousLink, "should have a previous link");
+  const previous = await getPost(previousLink.url, helper);
+  assert(previous, "previous post should exist");
+
+  const prevLinkHeader = previous.headers.get("link");
+  // this one should be from a different day
+  assert(prevLinkHeader, "previous should have a previous of its own");
+  const earlierLink = LinkHeader.parseLinkHeader(prevLinkHeader).find((link) =>
+    link.rel === "previous"
+  );
+  assert(earlierLink, "should be one more earlier, too");
 
   assert(
     !(await getPost("blah", helper)),
     "shouldn't return anything for a bad id",
   );
 });
+
+// TODO test before filter
