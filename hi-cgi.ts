@@ -19,3 +19,5 @@ ${envVars.map(k => `${k} = ${Deno.env.get(k)}`).join("\n")}
 // setTimeout(() => {
 //   writeLine("writing this a little later")
 // }, 20)
+
+export {}
