@@ -1,10 +1,9 @@
 import {
   getPost,
-  TimestreamFileHelper,
-  pad,
   getBefore,
 } from "./timestreams-core.ts";
 import { parseLinkHeader, stringify } from "./link.ts";
+import makeHelper from "./deno-file-helper.ts";
 
 const writeLine = (str?: string) => console.log(`${str || ""}\r`);
 
@@ -22,24 +21,6 @@ const mimes: Record<string, string> = {
 
 const sep = "/";
 
-function filesWithPrefix(base: string, path: string): string[] {
-  const parts = path.split(sep);
-  parts.pop();
-  parts.unshift(base);
-  const dir = parts.join(sep);
-  const files: string[] = [];
-  try {
-    const relativeDir = dir.replace(base + sep, "");
-    for (const { name } of Deno.readDirSync(dir)) {
-      const relativePath = [relativeDir, name].join(sep);
-      if (relativePath.startsWith(path)) files.push(relativePath);
-    }
-    return files;
-  } catch (err) {
-    return [];
-  }
-}
-
 async function run() {
   const method = Deno.env.get("REQUEST_METHOD") || "GET";
   const qs = Deno.env.get("QUERY_STRING");
@@ -50,40 +31,7 @@ async function run() {
   const beforeDate = beforeString ? Date.parse(beforeString) : undefined;
 
   const base = `${streamName}.timestream`;
-
-  const helper: TimestreamFileHelper = {
-    fileText: (path: string) => Deno.readTextFileSync([base, path].join(sep)),
-    fileExists: (path: string) => {
-      try {
-        return Deno.statSync([base, path].join(sep))?.isFile;
-      } catch (err) {
-        return false;
-      }
-    },
-    typeForExtension: (ext: string) => mimes[ext],
-    filesWithPrefix: (path: string) => filesWithPrefix(base, path),
-    separator: sep,
-    earliestDay: () => {
-      let minYear = 9999;
-      for (const f of Deno.readDirSync(base)) {
-        const num = parseInt(f.name);
-        if (num < minYear) minYear = num;
-      }
-      return { year: minYear, month: 1, day: 1 };
-    },
-    filesForDay: ({ year, month, day }) => {
-      const files: string[] = [];
-      const dayDir = `${year}/${pad(month)}/${pad(day)}`;
-      try {
-        for (const f of Deno.readDirSync(`${base}/${dayDir}`)) {
-          files.push(`${dayDir}/${f.name}`);
-        }
-        return files;
-      } catch (err) {
-        return [];
-      }
-    },
-  };
+  const helper = makeHelper(base, mimes);
 
   if (["GET", "HEAD"].includes(method) && streamName) {
     const post = postId
@@ -97,9 +45,15 @@ async function run() {
       const links = parseLinkHeader(post.headers.get("link"));
       for (const link of links) {
         if (!link.url.match(/^http/)) {
-          link.url = `${Deno.env.get("REQUEST_URI")}?stream=${
-            encodeURIComponent(streamName)
-          }&post=${encodeURIComponent(link.url)}`;
+          link.url = `${
+            Deno.env.get(
+              "REQUEST_URI",
+            )
+          }?stream=${encodeURIComponent(streamName)}&post=${
+            encodeURIComponent(
+              link.url,
+            )
+          }`;
         }
       }
       post.headers.set("link", stringify(links));
