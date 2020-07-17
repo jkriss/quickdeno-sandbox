@@ -22,14 +22,13 @@ const mimes: Record<string, string> = {
 
 const helper: TimestreamFileHelper = {
   typeForExtension: (ext) => mimes[ext],
-  fileExists: path => Object.keys(fakeFiles).includes(path),
-  fileReader,
-  fileText: path => fakeFiles[path],
-  filesWithPrefix
+  fileExists: (path) => Object.keys(fakeFiles).includes(path),
+  fileText: (path) => fakeFiles[path],
+  filesWithPrefix,
 };
 
-function filesWithPrefix(p:string): string[] {
-  return Object.keys(fakeFiles).filter(f => f.startsWith(p))
+function filesWithPrefix(p: string): string[] {
+  return Object.keys(fakeFiles).filter((f) => f.startsWith(p));
 }
 
 const te = new TextEncoder();
@@ -56,7 +55,7 @@ Deno.test("parse an id into a time and a name", () => {
 Deno.test("get a relative file path for an id", () => {
   assertEquals(
     fileForId("20200716101005Z-hi.txt"),
-    "2020/07/16/101005Z-hi.txt"
+    "2020/07/16/101005Z-hi.txt",
   );
   assertEquals(fileForId("20200716000000Z-hi.txt"), "2020/07/16/hi.txt");
 });
@@ -79,9 +78,10 @@ Deno.test("get a post by id", async () => {
 
   const post = await getPost(id, helper);
   assert(post, "post should exist");
+  assertEquals(post.filepath, "2020/07/01/hello.txt");
   assertEquals(
     post.headers.get(PostHeaders.time),
-    new Date("2020-07-01T00:00:00Z").toUTCString()
+    new Date("2020-07-01T00:00:00Z").toUTCString(),
   );
   assertEquals(post.headers.get(PostHeaders.version), "1");
   assertEquals(post.headers.get(PostHeaders.type), "text/plain");
@@ -93,9 +93,16 @@ Deno.test("get a post by id", async () => {
   assert(self);
   assertEquals(self.url, id);
   assertEquals(self.title, "test post");
-  const describedByText = links.find(link => link.rel === 'describedby' && link.type === 'text/plain')
-  assert(describedByText, 'should have describedby test')
-  assertEquals(describedByText.title, 'Description')
+  const describedByText = links.find(
+    (link) => link.rel === "describedby" && link.type === "text/plain",
+  );
+  assert(describedByText, "should have describedby test");
+  assertEquals(describedByText.title, "Description");
 
-  assert(!await getPost("blah", helper), "shouldn't return anything for a bad id");
+  // TODO check previous
+
+  assert(
+    !(await getPost("blah", helper)),
+    "shouldn't return anything for a bad id",
+  );
 });

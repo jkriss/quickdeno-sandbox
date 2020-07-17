@@ -1,15 +1,15 @@
 export interface Link {
   rel: string;
   url: string;
-  [x: string]: string
+  [x: string]: string;
 }
 
-export function parseAttributes(attrs:string) {
-  const obj = {}
-  return createObjects(obj, attrs)
+export function parseAttributes(attrs: string) {
+  const obj = {};
+  return createObjects(obj, attrs);
 }
 
-function createObjects(acc: Record<string,string>, p: string) {
+function createObjects(acc: Record<string, string>, p: string) {
   // rel="next" => 1: rel 2: next
   var m = p.match(/\s*(.+)\s*=\s*"?([^"]+)"?/);
   if (m) acc[m[1]] = m[2];
@@ -24,7 +24,7 @@ function parseLink(link: string): Link | undefined {
     parts.shift();
     var info = parts.reduce(createObjects, {});
     if (linkUrl) info.url = linkUrl;
-    if (!info.url || !info.rel) return
+    if (!info.url || !info.rel) return;
     // @ts-ignore
     return info;
   }
@@ -33,15 +33,17 @@ function parseLink(link: string): Link | undefined {
 export function parseLinkHeader(header?: string): Link[] {
   if (!header) return [];
   // @ts-ignore
-  return header.split(/,\s*</).map(parseLink).filter(p => typeof p !== 'undefined');
+  return header.split(/,\s*</).map(parseLink).filter((p) =>
+    typeof p !== "undefined"
+  );
 }
 
 export function stringify(links: Link[]) {
   return links
     .map((link) => {
       const parts: string[] = [`<${link.url}>`];
-      for (const k of Object.keys(link).filter(k => k !== 'url')) {
-        parts.push(`${k}="${link[k]}`)
+      for (const k of Object.keys(link).filter((k) => k !== "url")) {
+        parts.push(`${k}="${link[k]}`);
       }
       return parts.join("; ");
     })

@@ -17,7 +17,7 @@ export interface DateParts {
 
 export interface Post {
   headers: Headers;
-  getReader(): Promise<Deno.Reader & Deno.Closer>;
+  filepath: string;
 }
 
 export enum PostHeaders {
@@ -33,10 +33,7 @@ export interface TimestreamFileHelper {
   fileExists(path: string): boolean | Promise<boolean>;
   filesWithPrefix(path: string): string[] | Promise<string[]>;
   separator?: string;
-  fileReader(
-    path: string
-  ): (Deno.Reader & Deno.Closer) | Promise<Deno.Reader & Deno.Closer>;
-  fileText(path:string): string | undefined | Promise<string|undefined>
+  fileText(path: string): string | undefined | Promise<string | undefined>;
   typeForExtension(ext: string): string;
 }
 
@@ -111,13 +108,14 @@ function pad(n: number | undefined) {
 
 export function fileForMeta(
   meta: TimeAndName,
-  helper?: TimestreamFileHelper
+  helper?: TimestreamFileHelper,
 ): string | undefined {
   const sep = helper?.separator || "/";
   const { year, month, day, hour, minute, second } = meta.dateParts;
   let str = [year, pad(month), pad(day), ""].join(sep);
-  if (hour || minute || second)
+  if (hour || minute || second) {
     str += `${pad(hour)}${pad(minute)}${pad(second)}Z-`;
+  }
   str += meta.name;
   return str;
 }
@@ -142,41 +140,47 @@ export async function makeLinks({
   links.push(self);
   const files = await helper.filesWithPrefix(path);
   // filter out the file itself, sort lexicographically
-  const otherFiles = files.filter((p) => p !== path).sort(function (a, b) {
-    return a.localeCompare(b);
-  });
+  const otherFiles = files
+    .filter((p) => p !== path)
+    .sort(function (a, b) {
+      return a.localeCompare(b);
+    });
 
   for (const f of otherFiles) {
-    const suffix = f.split('$')[1]
-    const [first, second, third] = suffix.split('.')
+    const suffix = f.split("$")[1];
+    const [first, second, third] = suffix.split(".");
     // special case for self attributes
-    if (first === 'self') {
-      if (second === 'attributes') {
-        const content = await helper.fileText(f)
+    if (first === "self") {
+      if (second === "attributes") {
+        const content = await helper.fileText(f);
         if (content) {
-          const attrs = LinkHeader.parseAttributes(content)
-          Object.assign(self, attrs)
+          const attrs = LinkHeader.parseAttributes(content);
+          Object.assign(self, attrs);
         }
       }
     } else if (first && second) {
       if (!third) {
         // this is a rel with an alternate format
         // it may also have a .attributes file
-        const rel = first
-        const ext = second
+        const rel = first;
+        const ext = second;
         links.push({
           rel,
-          type: helper.typeForExtension('.'+ext),
-          url: `${id}$${suffix}`
-        })
-      } else if (third === 'attributes') {
+          type: helper.typeForExtension("." + ext),
+          url: `${id}$${suffix}`,
+        });
+      } else if (third === "attributes") {
         // add these attributes to an existing rel
-        const ext = second
-        const link = links.find(link => link.rel === first && link.type === helper.typeForExtension('.'+ext))
+        const ext = second;
+        const link = links.find(
+          (link) =>
+            link.rel === first &&
+            link.type === helper.typeForExtension("." + ext),
+        );
         if (link) {
-          const content = await helper.fileText(f)
+          const content = await helper.fileText(f);
           if (content) {
-            Object.assign(link, LinkHeader.parseAttributes(content))
+            Object.assign(link, LinkHeader.parseAttributes(content));
           }
         }
       }
@@ -188,7 +192,7 @@ export async function makeLinks({
 
 export async function getPost(
   id: string,
-  helper: TimestreamFileHelper
+  helper: TimestreamFileHelper,
 ): Promise<Post | undefined> {
   const meta = parseId(id);
   if (!meta) return;
@@ -198,7 +202,7 @@ export async function getPost(
     const headers = new Headers();
     headers.set(
       PostHeaders.time,
-      new Date(toUTC(meta.dateParts)).toUTCString()
+      new Date(toUTC(meta.dateParts)).toUTCString(),
     );
     headers.set(PostHeaders.version, "1");
     const extMatch = p.match(/\.\w+$/);
@@ -213,7 +217,7 @@ export async function getPost(
 
     return {
       headers,
-      getReader: async () => helper.fileReader(p),
+      filepath: p,
     };
   }
 }
