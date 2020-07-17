@@ -148,6 +148,7 @@ export async function makeLinks({
 
   for (const f of otherFiles) {
     const suffix = f.split("$")[1];
+    if (!suffix) continue;
     const [first, second, third] = suffix.split(".");
     // special case for self attributes
     if (first === "self") {
@@ -207,9 +208,8 @@ export async function getPost(
     headers.set(PostHeaders.version, "1");
     const extMatch = p.match(/\.\w+$/);
     const ext = extMatch ? extMatch[0] : undefined;
-    const type = ext
-      ? helper.typeForExtension(ext)
-      : "application/octet-stream";
+    const type = ext && helper.typeForExtension(ext) ||
+      "application/octet-stream";
     headers.set(PostHeaders.type, type);
     const links = await makeLinks({ id, type, path: p, helper });
     // TODO get previous

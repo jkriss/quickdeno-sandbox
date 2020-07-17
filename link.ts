@@ -43,7 +43,7 @@ export function stringify(links: Link[]) {
     .map((link) => {
       const parts: string[] = [`<${link.url}>`];
       for (const k of Object.keys(link).filter((k) => k !== "url")) {
-        parts.push(`${k}="${link[k]}`);
+        parts.push(`${k}="${link[k]}"`);
       }
       return parts.join("; ");
     })
