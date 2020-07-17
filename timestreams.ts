@@ -31,7 +31,7 @@ async function run() {
   const beforeDate = beforeString ? Date.parse(beforeString) : undefined;
 
   const base = `${streamName}.timestream`;
-  const helper = makeHelper(base, mimes);
+  const helper = makeHelper(base, mimes, sep);
 
   if (["GET", "HEAD"].includes(method) && streamName) {
     const post = postId

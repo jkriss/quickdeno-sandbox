@@ -1,29 +1,30 @@
 import { TimestreamFileHelper, pad } from "./timestreams-core.ts";
-import { SEP } from "https://deno.land/std/path/mod.ts";
-const sep = SEP;
-
-function filesWithPrefix(base: string, path: string): string[] {
-  const parts = path.split(sep);
-  parts.pop();
-  parts.unshift(base);
-  const dir = parts.join(sep);
-  const files: string[] = [];
-  try {
-    const relativeDir = dir.replace(base + sep, "");
-    for (const { name } of Deno.readDirSync(dir)) {
-      const relativePath = [relativeDir, name].join(sep);
-      if (relativePath.startsWith(path)) files.push(relativePath);
-    }
-    return files;
-  } catch (err) {
-    return [];
-  }
-}
 
 export default function helper(
   base: string,
   mimes: Record<string, string>,
+  seperator?: string,
 ): TimestreamFileHelper {
+  const sep = seperator || "/";
+
+  function filesWithPrefix(base: string, path: string): string[] {
+    const parts = path.split(sep);
+    parts.pop();
+    parts.unshift(base);
+    const dir = parts.join(sep);
+    const files: string[] = [];
+    try {
+      const relativeDir = dir.replace(base + sep, "");
+      for (const { name } of Deno.readDirSync(dir)) {
+        const relativePath = [relativeDir, name].join(sep);
+        if (relativePath.startsWith(path)) files.push(relativePath);
+      }
+      return files;
+    } catch (err) {
+      return [];
+    }
+  }
+
   const helper: TimestreamFileHelper = {
     fileText: (path: string) => Deno.readTextFileSync([base, path].join(sep)),
     fileExists: (path: string) => {
