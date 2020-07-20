@@ -1,3 +1,6 @@
 *.cgi
 lib/deno_runtime.d.ts
-
+*.c
+*.bundle.js
+http-handler
+responder
