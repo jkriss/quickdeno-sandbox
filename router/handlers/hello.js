@@ -14,7 +14,7 @@ body {
 
 <h1>Hello</h1>
 
-This is an index page, generated at ${new Date().toISOString()} just for you.
+This is an html page, generated at ${new Date().toISOString()} just for you.
 
 `;
 console.log(output.trim().split("\n").join("\r\n"));

@@ -6,6 +6,7 @@ File not found
 `;
 
 let file = Deno.env.get("PATH_TRANSLATED");
+if (!file) throw new Error(`PATH_TRANSLATED was not provided`);
 if (file && file.endsWith("/")) file += "index.html";
 
 try {

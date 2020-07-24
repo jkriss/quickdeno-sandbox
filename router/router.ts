@@ -105,17 +105,26 @@ async function example() {
     `HTTP/${result.versionMajor}.${result.versionMinor}`,
   );
 
-  let scriptPath;
-  try {
+  async function readAndRun(handlerName: string) {
     scriptPath = `./handlers/${handlerName}.js`;
     const handlerCode = await Deno.readTextFile(scriptPath);
-    // console.log("running", handlerCode);
     eval(handlerCode);
+  }
+
+  let scriptPath;
+  try {
+    await readAndRun(handlerName);
   } catch (err) {
-    console.error(`error reading ${scriptPath}: `, err);
-    // writeLine("HTTP/1.1 200 OK");
-    writeLine("HTTP/1.1 404 Not Found");
-    writeLine();
+    // console.error(`error reading ${scriptPath}: `, err);
+    // try the default handler if there is one
+    try {
+      Deno.env.set("PATH_INFO", pathname);
+      Deno.env.set("PATH_TRANSLATED", `${Deno.cwd()}/www${url.pathname}`);
+      readAndRun("default");
+    } catch (err) {
+      writeLine("HTTP/1.1 404 Not Found");
+      writeLine();
+    }
   }
 }
 
