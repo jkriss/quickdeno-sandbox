@@ -1,5 +1,5 @@
 let output = `
-http/1.1 404 Not Found
+HTTP/1.1 404 Not Found
 content-type: text/html
 
 File not found
@@ -22,9 +22,11 @@ try {
     if (first) {
       // do this after the first read
       // to make sure it's likely to succeed
-      console.log("http/1.1 200 OK\r");
+      console.log("HTTP/1.1 200 OK\r");
       // if we leave the content type out,
       // the browser will guess based on extension
+      // TODO add proper mime type lookup, maybe sourced from file
+      // TODO add content length based on file stat
       console.log("\r");
       first = false;
     }
